@@ -1,1 +1,4 @@
 id,market,direction,call_date,instrument,entry_price,entry_note,status,exit_price,exit_date,exit_note,actual_move_pct,position_return_pct,correct
+1,kr,혼조,2026-07-27,KOSPI,6690.62,7/24(금) 종가,open,,,,,,
+2,us,혼조,2026-07-27,S&P500,7411.98,7/24(금) 종가(주말 휴장으로 최신가 동일),open,,,,,,
+3,coin,하락,2026-07-27,BTC/USD,64304.50,"7/24 09:13 ET 기준(야후파이낸스 인용, CoinGecko API 차단)",open,,,,,,
