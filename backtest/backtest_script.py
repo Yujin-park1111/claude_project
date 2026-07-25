@@ -88,15 +88,31 @@ def compute_rsi(close, period=RSI_PERIOD):
     return 100 - (100 / (1 + rs))
 
 
-def run_market(name, close, overseas_close=None, self_lag_for_24h=False, use_rsi=False):
+def compute_macd(close, fast=12, slow=26, signal=9):
+    """표준 MACD(12,26,9). MACD선이 시그널선을 상향/하향 돌파하면 추세 전환(신호1과 같은 방향) 신호로 쓴다.
+    RSI(반전)와 반대로 MACD는 추세추종형이라, 강한 추세장에서 신호1(전일 추세)을 보강하는 역할을 기대한다."""
+    ema_fast = close.ewm(span=fast, adjust=False).mean()
+    ema_slow = close.ewm(span=slow, adjust=False).mean()
+    macd_line = ema_fast - ema_slow
+    signal_line = macd_line.ewm(span=signal, adjust=False).mean()
+    return macd_line, signal_line
+
+
+def run_market(name, close, overseas_close=None, self_lag_for_24h=False, use_rsi=False, use_macd=False):
     """
     close: 이 시장의 종가 시계열 (pandas Series, index=날짜)
     overseas_close: KR인 경우 미국 종가 시계열(신호4용). None이면 신호4 미적용(US 시장).
     self_lag_for_24h: 코인용. True면 신호4를 '자기 자신의 전일 방향'(24h 연동)으로 근사.
-    use_rsi: True면 신호5(RSI 과매수/과매도 반전)를 추가로 투표에 참여시킨다 (v2 실험용).
+    use_rsi: True면 신호5(RSI 과매수/과매도 반전)를 추가로 투표에 참여시킨다.
+    use_macd: True면 신호6(MACD 골든/데드크로스)를 추가로 투표에 참여시킨다.
     """
     daily_ret = close.pct_change() * 100  # %
     rsi = compute_rsi(close) if use_rsi else None
+    if use_macd:
+        macd_line, signal_line = compute_macd(close)
+        macd_hist = macd_line - signal_line
+    else:
+        macd_hist = None
     rows = []
 
     for i in range(VOL_WINDOW + 2, len(close)):
@@ -137,7 +153,17 @@ def run_market(name, close, overseas_close=None, self_lag_for_24h=False, use_rsi
                 elif rsi_prev <= RSI_OVERSOLD:
                     s5 = "up"
 
-        signals = [s for s in [s1, s3, s4, s5] if s is not None]
+        # 신호6 (v3, 옵션): MACD 골든/데드크로스. i-2->i-1 구간에서 히스토그램 부호가 바뀌면 크로스 발생 (룩어헤드 방지)
+        s6 = None
+        if use_macd and macd_hist is not None and i - 2 >= 0:
+            h_prev, h_prev2 = macd_hist.iloc[i - 1], macd_hist.iloc[i - 2]
+            if pd.notna(h_prev) and pd.notna(h_prev2):
+                if h_prev2 <= 0 and h_prev > 0:
+                    s6 = "up"    # 골든크로스
+                elif h_prev2 >= 0 and h_prev < 0:
+                    s6 = "down"  # 데드크로스
+
+        signals = [s for s in [s1, s3, s4, s5, s6] if s is not None]
         up_votes = signals.count("up")
         down_votes = signals.count("down")
 
@@ -167,7 +193,7 @@ def run_market(name, close, overseas_close=None, self_lag_for_24h=False, use_rsi
         rows.append({
             "market": name,
             "date": date_t.date().isoformat(),
-            "signal_trend": s1, "signal_vol": s3, "signal_overseas": s4, "signal_rsi": s5,
+            "signal_trend": s1, "signal_vol": s3, "signal_overseas": s4, "signal_rsi": s5, "signal_macd": s6,
             "call": call,
             "entry": round(float(entry), 4),
             "exit": round(float(exit_), 4),
@@ -237,6 +263,11 @@ def main():
         "us": run_market("us", sp500, overseas_close=None, use_rsi=True),
         "coin": run_market("coin", btc, overseas_close=None, self_lag_for_24h=True, use_rsi=True),
     }
+    v3 = {
+        "kr": run_market("kr", kospi, overseas_close=sp500, use_macd=True),
+        "us": run_market("us", sp500, overseas_close=None, use_macd=True),
+        "coin": run_market("coin", btc, overseas_close=None, self_lag_for_24h=True, use_macd=True),
+    }
 
     all_df = pd.concat(list(v1.values()), ignore_index=True)
     raw_path = os.path.join(OUT_DIR, "raw_results.csv")
@@ -248,8 +279,14 @@ def main():
     all_v2_df.to_csv(raw_v2_path, index=False, encoding="utf-8-sig")
     print(f"저장: {raw_v2_path} ({len(all_v2_df)}행)")
 
+    all_v3_df = pd.concat(list(v3.values()), ignore_index=True)
+    raw_v3_path = os.path.join(OUT_DIR, "raw_results_v3_macd.csv")
+    all_v3_df.to_csv(raw_v3_path, index=False, encoding="utf-8-sig")
+    print(f"저장: {raw_v3_path} ({len(all_v3_df)}행)")
+
     stats_v1 = {m: summarize(df) for m, df in v1.items()}
     stats_v2 = {m: summarize(df) for m, df in v2.items()}
+    stats_v3 = {m: summarize(df) for m, df in v3.items()}
     bh = {
         "kr": buy_and_hold(kospi),
         "us": buy_and_hold(sp500),
@@ -273,35 +310,39 @@ def main():
         f.write("- **v2 신호5(RSI)**: RSI(14) 과매수(70+)/과매도(30-) 구간에서 반전을 기대하는 신호를 추가했습니다. "
                 "룩어헤드 방지를 위해 전일 RSI만 사용합니다. RSI는 횡보장에서 특히 유효하고 강한 추세장에서는 "
                 "오탐이 늘어난다는 게 일반적으로 알려진 한계입니다 — 그래서 단독이 아니라 다수결 투표에만 참여시켰습니다.\n")
+        f.write("- **v3 신호6(MACD)**: 표준 MACD(12,26,9) 골든/데드크로스를 추가했습니다. RSI와 반대로 추세추종형 지표라 "
+                "강한 추세장에서 신호1(전일 추세)을 보강하는 역할을 기대하고 넣었습니다. 룩어헤드 방지를 위해 "
+                "i-2→i-1 구간의 크로스만 봅니다.\n")
         f.write(f"- 데이터 기간: {start.isoformat()} ~ {end.isoformat()} (요청 {YEARS_BACK}년, 실제 확보량은 소스별로 다를 수 있음)\n\n")
 
-        f.write("## 시장별 성과 (v1 vs v2)\n\n")
+        f.write("## 시장별 성과 (v1 vs v2:RSI vs v3:MACD)\n\n")
         for m, label in [("kr", "국내(코스피)"), ("us", "미국(S&P500)"), ("coin", "코인(BTC)")]:
-            s1_, s2_ = stats_v1[m], stats_v2[m]
+            s1_, s2_, s3_ = stats_v1[m], stats_v2[m], stats_v3[m]
             f.write(f"### {label}\n\n")
             if s1_["n"] == 0:
                 f.write("- 데이터 부족으로 결과 없음\n\n")
                 continue
-            f.write("| 지표 | v1 (가격 신호만) | v2 (+RSI) |\n")
-            f.write("|---|---|---|\n")
-            f.write(f"| 콜 수 | {s1_['n']}건 | {s2_['n']}건 |\n")
-            f.write(f"| 전체 적중률 | {s1_['hit_rate_pct']}% | {s2_['hit_rate_pct']}% |\n")
-            f.write(f"| **방향성 콜만 적중률** (상승/하락만, n={s1_['direction_only_n']}/{s2_['direction_only_n']}) "
-                    f"| {s1_['direction_only_hit_rate_pct']}% | {s2_['direction_only_hit_rate_pct']}% |\n")
-            f.write(f"| 방향성 콜 평균 수익률 | {s1_['direction_only_avg_return_pct']}% | {s2_['direction_only_avg_return_pct']}% |\n")
-            f.write(f"| 누적 수익률(단순 합산) | {s1_['cumulative_return_pct']}% | {s2_['cumulative_return_pct']}% |\n")
-            f.write(f"| MDD(최대낙폭) | {s1_['mdd_pct']}% | {s2_['mdd_pct']}% |\n")
-            f.write(f"| Sharpe 유사 지표 | {s1_['sharpe_like']} | {s2_['sharpe_like']} |\n")
-            f.write(f"| 같은 기간 buy&hold | {bh[m]}% | {bh[m]}% |\n")
-            better = "v2(RSI 추가)" if s2_["cumulative_return_pct"] > s1_["cumulative_return_pct"] else "v1(기존)"
-            f.write(f"\n- **RSI 추가가 실제로 개선했는가**: {better}가 누적 수익률 기준으로 더 나음\n\n")
+            f.write("| 지표 | v1 (가격 신호만) | v2 (+RSI) | v3 (+MACD) |\n")
+            f.write("|---|---|---|---|\n")
+            f.write(f"| 콜 수 | {s1_['n']}건 | {s2_['n']}건 | {s3_['n']}건 |\n")
+            f.write(f"| 전체 적중률 | {s1_['hit_rate_pct']}% | {s2_['hit_rate_pct']}% | {s3_['hit_rate_pct']}% |\n")
+            f.write(f"| **방향성 콜만 적중률** (n={s1_['direction_only_n']}/{s2_['direction_only_n']}/{s3_['direction_only_n']}) "
+                    f"| {s1_['direction_only_hit_rate_pct']}% | {s2_['direction_only_hit_rate_pct']}% | {s3_['direction_only_hit_rate_pct']}% |\n")
+            f.write(f"| 방향성 콜 평균 수익률 | {s1_['direction_only_avg_return_pct']}% | {s2_['direction_only_avg_return_pct']}% | {s3_['direction_only_avg_return_pct']}% |\n")
+            f.write(f"| 누적 수익률(단순 합산) | {s1_['cumulative_return_pct']}% | {s2_['cumulative_return_pct']}% | {s3_['cumulative_return_pct']}% |\n")
+            f.write(f"| MDD(최대낙폭) | {s1_['mdd_pct']}% | {s2_['mdd_pct']}% | {s3_['mdd_pct']}% |\n")
+            f.write(f"| Sharpe 유사 지표 | {s1_['sharpe_like']} | {s2_['sharpe_like']} | {s3_['sharpe_like']} |\n")
+            f.write(f"| 같은 기간 buy&hold | {bh[m]}% | {bh[m]}% | {bh[m]}% |\n")
+            variants = {"v1(기존)": s1_["cumulative_return_pct"], "v2(RSI)": s2_["cumulative_return_pct"], "v3(MACD)": s3_["cumulative_return_pct"]}
+            best = max(variants, key=variants.get)
+            f.write(f"\n- **가장 나은 조합**: {best} (누적 수익률 {variants[best]}% 기준)\n\n")
 
         f.write("## 해석 시 주의\n\n")
         f.write("- 방향성 콜만 집계한 적중률이 50%를 크게 넘지 않으면 이 신호 조합은 랜덤과 큰 차이가 없다는 뜻입니다.\n")
         f.write("- 여기서 좋은 성과가 나와도, 실전 브리핑은 뉴스 신호가 추가되므로 결과가 달라질 수 있습니다.\n")
-        f.write("- v2가 v1보다 나은 시장에서만 changelog.md에 RSI 신호 반영을 제안합니다 — 모든 시장에 일괄 적용하지 않습니다 "
+        f.write("- 시장별로 가장 나은 조합에서만 changelog.md에 반영을 제안합니다 — 모든 시장에 일괄 적용하지 않습니다 "
                 "(CLAUDE.md 원칙: 규칙은 점진적으로, 검증된 것만).\n")
-        f.write("- raw_results.csv(v1), raw_results_v2_rsi.csv(v2)로 개별 신호가 켜졌을 때만 따로 적중률을 더 뜯어볼 수 있습니다.\n")
+        f.write("- raw_results.csv(v1), raw_results_v2_rsi.csv(v2), raw_results_v3_macd.csv(v3)로 개별 신호가 켜졌을 때만 따로 적중률을 더 뜯어볼 수 있습니다.\n")
 
     print(f"저장: {report_path}")
     print("완료.")
