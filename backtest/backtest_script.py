@@ -69,13 +69,34 @@ def trend_signal(pct):
     return None  # 중립 = 신호 없음(투표에 참여 안 함)
 
 
-def run_market(name, close, overseas_close=None, self_lag_for_24h=False):
+RSI_PERIOD = 14
+RSI_OVERBOUGHT = 70
+RSI_OVERSOLD = 30
+
+
+def compute_rsi(close, period=RSI_PERIOD):
+    """Wilder's RSI. 과매수(70+)/과매도(30-) 구간에서 되돌림(반전) 신호로 쓴다.
+    출처: RSI는 횡보장에서 특히 유효하고 다른 신호와 결합할 때 신뢰도가 올라간다는 것이
+    일반적으로 알려진 한계다 (강한 추세장에서는 오탐이 늘어남) — 그래서 단독이 아니라
+    신호1/3/4와 함께 다수결에 참여시킨다."""
+    delta = close.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
+    avg_loss = loss.ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
+    rs = avg_gain / avg_loss
+    return 100 - (100 / (1 + rs))
+
+
+def run_market(name, close, overseas_close=None, self_lag_for_24h=False, use_rsi=False):
     """
     close: 이 시장의 종가 시계열 (pandas Series, index=날짜)
     overseas_close: KR인 경우 미국 종가 시계열(신호4용). None이면 신호4 미적용(US 시장).
     self_lag_for_24h: 코인용. True면 신호4를 '자기 자신의 전일 방향'(24h 연동)으로 근사.
+    use_rsi: True면 신호5(RSI 과매수/과매도 반전)를 추가로 투표에 참여시킨다 (v2 실험용).
     """
     daily_ret = close.pct_change() * 100  # %
+    rsi = compute_rsi(close) if use_rsi else None
     rows = []
 
     for i in range(VOL_WINDOW + 2, len(close)):
@@ -106,7 +127,17 @@ def run_market(name, close, overseas_close=None, self_lag_for_24h=False):
         elif self_lag_for_24h:
             s4 = s1  # 데이터가 일봉뿐이라 24h 연동은 신호1과 사실상 동일 (report에 한계로 명시)
 
-        signals = [s for s in [s1, s3, s4] if s is not None]
+        # 신호5 (v2, 옵션): RSI 과매수/과매도 반전. 전일(i-1) 시점 RSI만 사용 (룩어헤드 방지)
+        s5 = None
+        if use_rsi and rsi is not None:
+            rsi_prev = rsi.iloc[i - 1]
+            if pd.notna(rsi_prev):
+                if rsi_prev >= RSI_OVERBOUGHT:
+                    s5 = "down"
+                elif rsi_prev <= RSI_OVERSOLD:
+                    s5 = "up"
+
+        signals = [s for s in [s1, s3, s4, s5] if s is not None]
         up_votes = signals.count("up")
         down_votes = signals.count("down")
 
@@ -136,7 +167,7 @@ def run_market(name, close, overseas_close=None, self_lag_for_24h=False):
         rows.append({
             "market": name,
             "date": date_t.date().isoformat(),
-            "signal_trend": s1, "signal_vol": s3, "signal_overseas": s4,
+            "signal_trend": s1, "signal_vol": s3, "signal_overseas": s4, "signal_rsi": s5,
             "call": call,
             "entry": round(float(entry), 4),
             "exit": round(float(exit_), 4),
@@ -159,6 +190,14 @@ def summarize(df):
     mdd = (cum - peak).min()
     std = df["position_return_pct"].std()
     sharpe_like = (avg_ret / std * math.sqrt(252)) if std and std > 0 else None
+
+    # 방향성 콜(상승/하락)만 따로 집계 — "보합=±1%면 무조건 적중" 규칙 때문에
+    # 전체 적중률이 실제 수익성과 따로 노는 문제(2026-07-26 리포트에서 발견)를 보완한다.
+    dir_df = df[df["call"].isin(["상승", "하락"])]
+    dir_n = len(dir_df)
+    dir_hit_rate = round(dir_df["correct"].mean() * 100, 1) if dir_n > 0 else None
+    dir_avg_ret = round(dir_df["position_return_pct"].mean(), 3) if dir_n > 0 else None
+
     return {
         "n": n,
         "hit_rate_pct": round(correct_n / n * 100, 1),
@@ -166,6 +205,9 @@ def summarize(df):
         "cumulative_return_pct": round(float(cum.iloc[-1]), 2),
         "mdd_pct": round(float(mdd), 2),
         "sharpe_like": round(sharpe_like, 2) if sharpe_like is not None else None,
+        "direction_only_n": dir_n,
+        "direction_only_hit_rate_pct": dir_hit_rate,
+        "direction_only_avg_return_pct": dir_avg_ret,
     }
 
 
@@ -184,20 +226,30 @@ def main():
     btc = fetch_btc(start, end)
     print(f"KOSPI {len(kospi)}행, S&P500 {len(sp500)}행, BTC {len(btc)}행 확보")
 
-    kr_df = run_market("kr", kospi, overseas_close=sp500)
-    us_df = run_market("us", sp500, overseas_close=None)
-    coin_df = run_market("coin", btc, overseas_close=None, self_lag_for_24h=True)
+    # v1: 기존 신호(추세/변동성/해외연동)만. v2: 여기에 RSI 반전 신호(신호5) 추가.
+    v1 = {
+        "kr": run_market("kr", kospi, overseas_close=sp500),
+        "us": run_market("us", sp500, overseas_close=None),
+        "coin": run_market("coin", btc, overseas_close=None, self_lag_for_24h=True),
+    }
+    v2 = {
+        "kr": run_market("kr", kospi, overseas_close=sp500, use_rsi=True),
+        "us": run_market("us", sp500, overseas_close=None, use_rsi=True),
+        "coin": run_market("coin", btc, overseas_close=None, self_lag_for_24h=True, use_rsi=True),
+    }
 
-    all_df = pd.concat([kr_df, us_df, coin_df], ignore_index=True)
+    all_df = pd.concat(list(v1.values()), ignore_index=True)
     raw_path = os.path.join(OUT_DIR, "raw_results.csv")
     all_df.to_csv(raw_path, index=False, encoding="utf-8-sig")
     print(f"저장: {raw_path} ({len(all_df)}행)")
 
-    stats = {
-        "kr": summarize(kr_df),
-        "us": summarize(us_df),
-        "coin": summarize(coin_df),
-    }
+    all_v2_df = pd.concat(list(v2.values()), ignore_index=True)
+    raw_v2_path = os.path.join(OUT_DIR, "raw_results_v2_rsi.csv")
+    all_v2_df.to_csv(raw_v2_path, index=False, encoding="utf-8-sig")
+    print(f"저장: {raw_v2_path} ({len(all_v2_df)}행)")
+
+    stats_v1 = {m: summarize(df) for m, df in v1.items()}
+    stats_v2 = {m: summarize(df) for m, df in v2.items()}
     bh = {
         "kr": buy_and_hold(kospi),
         "us": buy_and_hold(sp500),
@@ -206,40 +258,54 @@ def main():
 
     report_path = os.path.join(OUT_DIR, "report_v1.md")
     with open(report_path, "w", encoding="utf-8") as f:
-        f.write("# 백테스트 리포트 v1 (v1-lite: 가격 기반 신호만)\n\n")
+        f.write("# 백테스트 리포트 (v1: 가격 신호만 vs v2: +RSI 반전 신호)\n\n")
         f.write("실제 투자 자문이 아니라 규칙 기반 실험 시스템 검증용입니다.\n\n")
         f.write("## 방법론 한계\n\n")
         f.write("- rules.md v1의 신호2(뉴스 톤)는 과거 뉴스 데이터가 없어 이 백테스트에서 **제외**했습니다. "
-                "이 백테스트는 신호1(추세)·신호3(변동성)·신호4(해외/24h연동)만 반영한 '부분집합' 검증입니다. "
+                "신호1(추세)·신호3(변동성)·신호4(해외/24h연동)만 반영한 '부분집합' 검증입니다. "
                 "뉴스 신호의 효과는 실전(매일 아침 브리핑) 결과로만 검증됩니다.\n")
         f.write("- 코인의 신호4('최근 24시간 방향성')는 일봉 데이터만 있어 신호1(추세)과 사실상 동일하게 계산됐습니다 — 중복 신호일 수 있습니다.\n")
         f.write("- 룩어헤드 편향 방지: N일 콜은 N-1일까지 데이터로만 만들고, N일 종가로 결과를 판정했습니다.\n")
+        f.write("- **적중률 지표의 함정**: '보합/혼조' 콜은 실제 변동이 ±1% 이내면 무조건 '적중'으로 처리됩니다 — "
+                "지수는 대부분의 날이 이 범위 안에서 움직이므로 전체 적중률이 부풀려질 수 있습니다 "
+                "(2026-07-26 실제 리포트에서 미국 시장 적중률 74.7%인데 수익은 -18.5%로 나온 사례로 발견됨). "
+                "그래서 아래에 **방향성 콜(상승/하락)만 따로 집계한 적중률**을 추가했습니다 — 이게 더 정직한 지표입니다.\n")
+        f.write("- **v2 신호5(RSI)**: RSI(14) 과매수(70+)/과매도(30-) 구간에서 반전을 기대하는 신호를 추가했습니다. "
+                "룩어헤드 방지를 위해 전일 RSI만 사용합니다. RSI는 횡보장에서 특히 유효하고 강한 추세장에서는 "
+                "오탐이 늘어난다는 게 일반적으로 알려진 한계입니다 — 그래서 단독이 아니라 다수결 투표에만 참여시켰습니다.\n")
         f.write(f"- 데이터 기간: {start.isoformat()} ~ {end.isoformat()} (요청 {YEARS_BACK}년, 실제 확보량은 소스별로 다를 수 있음)\n\n")
 
-        f.write("## 시장별 성과\n\n")
+        f.write("## 시장별 성과 (v1 vs v2)\n\n")
         for m, label in [("kr", "국내(코스피)"), ("us", "미국(S&P500)"), ("coin", "코인(BTC)")]:
-            s = stats[m]
+            s1_, s2_ = stats_v1[m], stats_v2[m]
             f.write(f"### {label}\n\n")
-            if s["n"] == 0:
+            if s1_["n"] == 0:
                 f.write("- 데이터 부족으로 결과 없음\n\n")
                 continue
-            note = "" if s["n"] >= 20 else " (⚠️ 표본이 적어도 이 정도는 늘 있음 — 여긴 오히려 표본이 많은 게 정상)"
-            f.write(f"- 콜 수: {s['n']}건\n")
-            f.write(f"- 적중률: {s['hit_rate_pct']}%\n")
-            f.write(f"- 평균 포지션 수익률: {s['avg_position_return_pct']}%\n")
-            f.write(f"- 누적 수익률(단순 합산): {s['cumulative_return_pct']}%\n")
-            f.write(f"- MDD(최대낙폭): {s['mdd_pct']}%\n")
-            f.write(f"- Sharpe 유사 지표(연율화 근사): {s['sharpe_like']}\n")
-            f.write(f"- 같은 기간 단순 보유(buy&hold) 수익률: {bh[m]}%\n")
-            f.write(f"- 규칙 전략이 단순 보유보다 나았는가: {'예' if s['cumulative_return_pct'] > bh[m] else '아니오'}\n\n")
+            f.write("| 지표 | v1 (가격 신호만) | v2 (+RSI) |\n")
+            f.write("|---|---|---|\n")
+            f.write(f"| 콜 수 | {s1_['n']}건 | {s2_['n']}건 |\n")
+            f.write(f"| 전체 적중률 | {s1_['hit_rate_pct']}% | {s2_['hit_rate_pct']}% |\n")
+            f.write(f"| **방향성 콜만 적중률** (상승/하락만, n={s1_['direction_only_n']}/{s2_['direction_only_n']}) "
+                    f"| {s1_['direction_only_hit_rate_pct']}% | {s2_['direction_only_hit_rate_pct']}% |\n")
+            f.write(f"| 방향성 콜 평균 수익률 | {s1_['direction_only_avg_return_pct']}% | {s2_['direction_only_avg_return_pct']}% |\n")
+            f.write(f"| 누적 수익률(단순 합산) | {s1_['cumulative_return_pct']}% | {s2_['cumulative_return_pct']}% |\n")
+            f.write(f"| MDD(최대낙폭) | {s1_['mdd_pct']}% | {s2_['mdd_pct']}% |\n")
+            f.write(f"| Sharpe 유사 지표 | {s1_['sharpe_like']} | {s2_['sharpe_like']} |\n")
+            f.write(f"| 같은 기간 buy&hold | {bh[m]}% | {bh[m]}% |\n")
+            better = "v2(RSI 추가)" if s2_["cumulative_return_pct"] > s1_["cumulative_return_pct"] else "v1(기존)"
+            f.write(f"\n- **RSI 추가가 실제로 개선했는가**: {better}가 누적 수익률 기준으로 더 나음\n\n")
 
         f.write("## 해석 시 주의\n\n")
-        f.write("- 적중률이 50%를 크게 넘지 않으면 이 규칙(가격 신호만)은 랜덤과 큰 차이가 없다는 뜻입니다.\n")
+        f.write("- 방향성 콜만 집계한 적중률이 50%를 크게 넘지 않으면 이 신호 조합은 랜덤과 큰 차이가 없다는 뜻입니다.\n")
         f.write("- 여기서 좋은 성과가 나와도, 실전 브리핑은 뉴스 신호가 추가되므로 결과가 달라질 수 있습니다.\n")
-        f.write("- 이 결과를 근거로 changelog.md에 조정을 제안할 때는, 어떤 신호가 잘 맞았고 어떤 신호가 안 맞았는지 raw_results.csv로 더 뜯어봐야 합니다 (예: signal_vol이 켜졌을 때만 따로 적중률 계산).\n")
+        f.write("- v2가 v1보다 나은 시장에서만 changelog.md에 RSI 신호 반영을 제안합니다 — 모든 시장에 일괄 적용하지 않습니다 "
+                "(CLAUDE.md 원칙: 규칙은 점진적으로, 검증된 것만).\n")
+        f.write("- raw_results.csv(v1), raw_results_v2_rsi.csv(v2)로 개별 신호가 켜졌을 때만 따로 적중률을 더 뜯어볼 수 있습니다.\n")
 
     print(f"저장: {report_path}")
     print("완료.")
+    return stats_v1, stats_v2, bh
 
 
 if __name__ == "__main__":
