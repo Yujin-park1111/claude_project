@@ -12,10 +12,12 @@
 
 각 시장(국내/미국/코인)·핫섹터별로 세 기간을 구분해서 판단한다:
 - **1일 뒤**: 단기 방향. 전일 추세, 뉴스 톤, 변동성(rules.md 신호) 기반.
-- **7일 뒤**: `scripts/quant_stats.py`의 `range_7d_pct`, `momentum_5d_pct`와 최근 1주 뉴스 흐름 기반.
+- **7일 뒤**: `scripts/quant_stats.py`의 `range_7d_pct`, `momentum_5d_pct`와 최근 1주 뉴스 흐름 기반. **미국 시장**은 여기에 RSI(14) 과매수(70+)/과매도(30-) 반전 신호를 추가로 참고한다 (근거: 2026-07-26 10년 백테스트에서 미국 시장만 개선 확인됨, `changelog.md` 참고 — 국내/코인은 오히려 악화되어 적용하지 않음).
 - **1개월 뒤**: `scripts/quant_stats.py`의 `range_1m_pct`, `momentum_20d_pct`, (미국 종목은 `analyst_target_price`) 및 거시 이슈 기반.
 
 세 기간의 판단이 서로 다를 수 있음(예: 1일은 반등, 1개월은 하락)을 명시적으로 구분해서 쓴다 — 뭉뚱그리지 않는다.
+
+데이터 소스 우선순위: `scripts/quant_stats.py` 먼저 시도 → 네트워크 차단(403) 시 `api`(Alpha Vantage) MCP 커넥터로 대체(가격/모멘텀/RSI/MACD/뉴스 감성) → 그래도 안 되면 WebSearch 추정. 어떤 소스를 썼는지 리포트에 명시한다.
 
 ## 부사장 검토 기준
 
