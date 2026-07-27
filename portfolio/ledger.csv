@@ -1,5 +1,5 @@
 id,market,direction,call_date,instrument,entry_price,entry_note,status,exit_price,exit_date,exit_note,actual_move_pct,position_return_pct,correct
-1,kr,혼조,2026-07-27,KOSPI,6690.62,7/24(금) 종가,open,,,,,,
+1,kr,혼조,2026-07-27,KOSPI,6690.62,7/24(금) 종가,closed,6755.75,2026-07-27,"머니투데이 등 언론 종가 인용, KRX 원자료 확인 - Alpha Vantage는 KRX 지수 미지원(기존 한계)",0.97,0.00,1
 2,us,혼조,2026-07-27,S&P500,7411.98,7/24(금) 종가(주말 휴장으로 최신가 동일),open,,,,,,
 3,coin,하락,2026-07-27,BTC/USD,64304.50,"7/24 09:13 ET 기준(야후파이낸스 인용, CoinGecko API 차단)",closed,64418.43,2026-07-27,"Alpha Vantage DIGITAL_CURRENCY_DAILY 2026-07-26 UTC 종가(사실상 최신, CoinGecko 차단으로 대체)",0.18,-0.18,0
 4,coin,보합,2026-07-27,BTC/USD,64418.43,"Alpha Vantage DIGITAL_CURRENCY_DAILY 2026-07-26 UTC 종가(사실상 최신, CoinGecko 차단으로 대체)",open,,,,,,
