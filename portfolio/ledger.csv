@@ -3,6 +3,6 @@ id,market,direction,call_date,instrument,entry_price,entry_note,status,exit_pric
 2,us,혼조,2026-07-27,S&P500,7411.98,7/24(금) 종가(주말 휴장으로 최신가 동일),closed,7413.18,2026-07-28,"Yahoo Finance/Motley Fool 등 7/27(월) 미 정규장 실제 마감치(S&P500 7413.18, +0.02%)",0.02,0.00,1
 3,coin,하락,2026-07-27,BTC/USD,64304.50,"7/24 09:13 ET 기준(야후파이낸스 인용, CoinGecko API 차단)",closed,64418.43,2026-07-27,"Alpha Vantage DIGITAL_CURRENCY_DAILY 2026-07-26 UTC 종가(사실상 최신, CoinGecko 차단으로 대체)",0.18,-0.18,0
 4,coin,보합,2026-07-27,BTC/USD,64418.43,"Alpha Vantage DIGITAL_CURRENCY_DAILY 2026-07-26 UTC 종가(사실상 최신, CoinGecko 차단으로 대체)",closed,65148.63,2026-07-28,Alpha Vantage DIGITAL_CURRENCY_DAILY BTC/USD 2026-07-27 UTC 종가,1.13,0.00,0
-5,kr,혼조,2026-07-28,KOSPI,6755.75,7/27(월) KOSPI 종가,open,,,,,,
+5,kr,혼조,2026-07-28,KOSPI,6755.75,7/27(월) KOSPI 종가,closed,6023.66,2026-07-28,"머니투데이/아주경제/뉴스핌/한국경제 등 언론 다수 종가 인용(6023.66, -732.09p, -10.84%) - Alpha Vantage KRX 지수/개별종목 미지원(기존 한계) 확인, GLOBAL_QUOTE(005930.KS) 빈 응답",-10.84,0.00,0
 6,coin,보합,2026-07-28,BTC/USD,65148.63,Alpha Vantage DIGITAL_CURRENCY_DAILY 2026-07-27 UTC 종가,open,,,,,,
 7,us,혼조,2026-07-28,S&P500,7413.18,"7/27(월) 미 정규장 마감가(오늘밤 콜의 진입가, 화요일 세션 아직 미개장)",open,,,,,,
