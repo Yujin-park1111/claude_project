@@ -6,6 +6,6 @@ id,market,direction,call_date,instrument,entry_price,entry_note,status,exit_pric
 5,kr,혼조,2026-07-28,KOSPI,6755.75,7/27(월) KOSPI 종가,closed,6023.66,2026-07-28,"머니투데이/아주경제/뉴스핌/한국경제 등 언론 다수 종가 인용(6023.66, -732.09p, -10.84%) - Alpha Vantage KRX 지수/개별종목 미지원(기존 한계) 확인, GLOBAL_QUOTE(005930.KS) 빈 응답",-10.84,0.00,0
 6,coin,보합,2026-07-28,BTC/USD,65148.63,Alpha Vantage DIGITAL_CURRENCY_DAILY 2026-07-27 UTC 종가,closed,63630.89,2026-07-29,"Alpha Vantage DIGITAL_CURRENCY_DAILY BTC/USD 2026-07-28 UTC 종가(사실상 최신, UTC 자정 전 조회)",-2.33,0.00,0
 7,us,혼조,2026-07-28,S&P500,7413.18,"7/27(월) 미 정규장 마감가(오늘밤 콜의 진입가, 화요일 세션 아직 미개장)",closed,7428.78,2026-07-29,"7/28(화) 미 정규장 실제 마감가(다우+1.03%/S&P+0.21%/나스닥-0.22%, WebSearch 다수 교차확인)",0.21,0.00,1
-8,kr,혼조,2026-07-29,KOSPI,6023.66,7/28(화) KOSPI 종가('검은 화요일' 폭락 마감),open,,,,,,
+8,kr,혼조,2026-07-29,KOSPI,6023.66,7/28(화) KOSPI 종가('검은 화요일' 폭락 마감),closed,5663.24,2026-07-29,"코스피 7/29(수) 종가, 전일比 -360.42p(-5.98%), 매도 사이드카 발동 - 한국경제/이데일리/뉴스핌/한국일보 등 다수 언론 교차확인, Alpha Vantage는 KRX 미지원(기존 한계) 확인",-5.98,0.00,0
 9,coin,혼조,2026-07-29,BTC/USD,63630.89,Alpha Vantage DIGITAL_CURRENCY_DAILY 2026-07-28 UTC 종가(사실상 최신),open,,,,,,
 10,us,혼조,2026-07-29,S&P500,7428.78,7/28(화) 미 정규장 마감가(오늘밤 FOMC 발표 세션 대상 pending 콜),open,,,,,,
