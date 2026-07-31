@@ -12,6 +12,6 @@ id,market,direction,call_date,instrument,entry_price,entry_note,status,exit_pric
 11,kr,하락,2026-07-30,KOSPI,5663.24,7/29(수) KOSPI 종가('매도 사이드카' 2거래일 연속 발동 마감),closed,5593.56,2026-07-30,"코스피 7/30(목) 종가, 전일比 -69.68p(-1.23%) - 한국경제/머니투데이/아주경제/뉴스핌/파이낸셜뉴스/서울파이낸스 등 다수 언론 교차확인, Alpha Vantage GLOBAL_QUOTE(005930.KS) 재확인했으나 이번에도 빈 응답(KRX 미지원 기존 한계 재확인)",-1.23,1.23,1
 12,coin,혼조,2026-07-30,BTC/USD,63884.96,Alpha Vantage DIGITAL_CURRENCY_DAILY 2026-07-29 UTC 종가,closed,63800.73,2026-07-31,Alpha Vantage DIGITAL_CURRENCY_DAILY BTC/USD 2026-07-30 UTC 종가,-0.13,0.00,1
 13,us,하락,2026-07-30,S&P500,7316.15,"7/29(수) 미 정규장 마감가(오늘밤 콜의 진입가, FOMC 매파적 동결 직후 마감)",closed,7437.63,2026-07-31,"7/30(목) 미 정규장 실제 마감가(다우+1.2%/S&P+1.7%/나스닥+2.8%, MSFT/Lam Research 실적 호조+반도체 랠리, WebSearch 다수 교차확인: Yahoo Finance/CNBC/24-7 Wall St)",1.66,-1.66,0
-14,kr,상승,2026-07-31,KOSPI,5593.56,7/30(목) KOSPI 종가,open,,,,,,
+14,kr,상승,2026-07-31,KOSPI,5593.56,7/30(목) KOSPI 종가,closed,6595.45,2026-07-31,"코스피 7/31(금) 종가, 전일比 +1001.89p(+17.91%), 사상 최대 상승률/상승폭 - 매수 사이드카 발동(코스피/코스닥 동시), 삼성전자 +26.81%(26만2500원)/SK하이닉스 상한가 +29.95%(171만8000원) - 한국경제/파이낸셜뉴스/뉴시스/조세일보 등 다수 언론 교차확인, Alpha Vantage KRX 미지원(기존 한계) 확인",17.91,17.91,1
 15,coin,보합,2026-07-31,BTC/USD,63800.73,Alpha Vantage DIGITAL_CURRENCY_DAILY 2026-07-30 UTC 종가,open,,,,,,
 16,us,상승,2026-07-31,S&P500,7437.63,7/30(목) 미 정규장 마감가(오늘밤 콜의 진입가),open,,,,,,
