@@ -98,6 +98,25 @@ def compute_macd(close, fast=12, slow=26, signal=9):
     return macd_line, signal_line
 
 
+MAGNITUDE_MIN_HISTORY = 60   # 티어 구분(3분위) 계산에 필요한 최소 과거 표본 수
+MAGNITUDE_MAX_HISTORY = 252  # 최근 1년치만 사용 (오래된 변동성 체제는 배제)
+MAGNITUDE_TIERS = ("완만", "보통", "큰폭")
+
+
+def magnitude_tier(value, pool):
+    """pool(과거 값 목록, 오늘 값은 미포함)의 3분위 경계로 value를 완만/보통/큰폭으로 분류.
+    표본이 부족하면 None(판정 보류)을 반환 — 룩어헤드 방지를 위해 pool은 항상 '오늘 이전' 값만 담는다."""
+    if len(pool) < MAGNITUDE_MIN_HISTORY:
+        return None
+    arr = np.array(pool[-MAGNITUDE_MAX_HISTORY:])
+    low, high = np.percentile(arr, [33.33, 66.67])
+    if value < low:
+        return "완만"
+    if value < high:
+        return "보통"
+    return "큰폭"
+
+
 def run_market(name, close, overseas_close=None, self_lag_for_24h=False, use_rsi=False, use_macd=False):
     """
     close: 이 시장의 종가 시계열 (pandas Series, index=날짜)
@@ -114,6 +133,10 @@ def run_market(name, close, overseas_close=None, self_lag_for_24h=False, use_rsi
     else:
         macd_hist = None
     rows = []
+
+    # 규모(변동폭) 신호용: 오늘 이전 값만 쌓이는 과거 표본 풀 (룩어헤드 방지)
+    avg_abs_pool = []   # 예측 규모 분류용 (최근 20일 평균 변동폭의 과거 분포)
+    abs_ret_pool = []   # 실제 규모 분류용 (하루 실제 변동폭의 과거 분포)
 
     for i in range(VOL_WINDOW + 2, len(close)):
         date_t = close.index[i]
@@ -190,6 +213,15 @@ def run_market(name, close, overseas_close=None, self_lag_for_24h=False, use_rsi
             position_return_pct = 0.0
             correct = abs(actual_move_pct) <= 1.0
 
+        # 규모(변동폭) 신호 (실험용, rules.md 미반영): 예측 규모 = 어제 시점 최근 20일 평균 변동폭(avg_abs)의
+        # 과거 분포 3분위, 실제 규모 = 오늘 실제 변동폭의 과거 분포 3분위. 두 풀 모두 '오늘 이전' 값만 담아 룩어헤드 방지.
+        magnitude_predicted = magnitude_tier(avg_abs, avg_abs_pool) if pd.notna(avg_abs) else None
+        magnitude_actual = magnitude_tier(abs(actual_move_pct), abs_ret_pool)
+        magnitude_match = (magnitude_predicted == magnitude_actual) if (magnitude_predicted and magnitude_actual) else None
+        if pd.notna(avg_abs):
+            avg_abs_pool.append(float(avg_abs))
+        abs_ret_pool.append(abs(float(actual_move_pct)))
+
         rows.append({
             "market": name,
             "date": date_t.date().isoformat(),
@@ -200,8 +232,70 @@ def run_market(name, close, overseas_close=None, self_lag_for_24h=False, use_rsi
             "actual_move_pct": round(actual_move_pct, 3),
             "position_return_pct": round(position_return_pct, 3),
             "correct": correct,
+            "avg_abs_pct": round(float(avg_abs), 3) if pd.notna(avg_abs) else None,
+            "magnitude_predicted": magnitude_predicted,
+            "magnitude_actual": magnitude_actual,
+            "magnitude_match": magnitude_match,
         })
 
+    return pd.DataFrame(rows)
+
+
+def summarize_magnitude(df):
+    """규모(변동폭) 신호 검증 (실험용, rules.md 미반영).
+    예측 규모(avg_abs_pct 기반 완만/보통/큰폭)와 실제 규모(당일 변동폭 기반 완만/보통/큰폭)를 비교한다.
+    3분위 분류이므로 무작위 추측의 기대 적중률은 33.3%다 — 이걸 못 넘으면 이 신호는 쓸모가 없다는 뜻."""
+    sub = df.dropna(subset=["avg_abs_pct"])
+    corr = None
+    if len(sub) >= 2:
+        corr = float(np.corrcoef(sub["avg_abs_pct"], sub["actual_move_pct"].abs())[0, 1])
+
+    tier_df = df[df["magnitude_predicted"].notna() & df["magnitude_actual"].notna()]
+    n_tier = len(tier_df)
+    if n_tier == 0:
+        return {"n_tier": 0, "corr": round(corr, 3) if corr is not None else None}
+
+    exact_hit_rate = round(tier_df["magnitude_match"].mean() * 100, 1)
+    majority_tier = tier_df["magnitude_actual"].mode().iloc[0]
+    majority_baseline_pct = round((tier_df["magnitude_actual"] == majority_tier).mean() * 100, 1)
+    return {
+        "n_tier": n_tier,
+        "corr": round(corr, 3) if corr is not None else None,
+        "exact_hit_rate_pct": exact_hit_rate,
+        "random_baseline_pct": round(100 / 3, 1),
+        "majority_baseline_pct": majority_baseline_pct,
+        "majority_tier": majority_tier,
+    }
+
+
+def run_magnitude_horizon(close, horizon):
+    """N거래일(horizon) 뒤까지의 누적 변동폭 등급을 예측할 수 있는지 검증 (신호7의 7일/1개월 확장 검증).
+    예측 변수는 신호7과 동일: 어제까지의 최근 20일 평균 일간 변동폭. 실제값은 어제 종가 대비 horizon거래일 뒤
+    종가까지의 누적 변동폭(절대값). 두 분포 모두 '오늘 이전' 값만으로 3분위 분류해 룩어헤드를 방지한다."""
+    daily_ret = close.pct_change() * 100
+    avg_abs_pool = []
+    fwd_pool = []
+    rows = []
+    for i in range(VOL_WINDOW + 2, len(close) - horizon + 1):
+        recent_abs = daily_ret.iloc[i - 1 - VOL_WINDOW:i - 1].abs()
+        avg_abs = recent_abs.mean()
+        if pd.isna(avg_abs):
+            continue
+        entry = close.iloc[i - 1]
+        exit_ = close.iloc[i - 1 + horizon]
+        fwd_move_pct = abs((exit_ - entry) / entry * 100)
+        predicted = magnitude_tier(avg_abs, avg_abs_pool)
+        actual = magnitude_tier(fwd_move_pct, fwd_pool)
+        match = (predicted == actual) if (predicted and actual) else None
+        avg_abs_pool.append(float(avg_abs))
+        fwd_pool.append(float(fwd_move_pct))
+        rows.append({
+            "avg_abs_pct": round(float(avg_abs), 3),
+            "actual_move_pct": round(float(fwd_move_pct), 3),
+            "magnitude_predicted": predicted,
+            "magnitude_actual": actual,
+            "magnitude_match": match,
+        })
     return pd.DataFrame(rows)
 
 
@@ -287,6 +381,10 @@ def main():
     stats_v1 = {m: summarize(df) for m, df in v1.items()}
     stats_v2 = {m: summarize(df) for m, df in v2.items()}
     stats_v3 = {m: summarize(df) for m, df in v3.items()}
+    stats_mag = {m: summarize_magnitude(df) for m, df in v1.items()}
+    closes = {"kr": kospi, "us": sp500, "coin": btc}
+    stats_mag_h5 = {m: summarize_magnitude(run_magnitude_horizon(c, 5)) for m, c in closes.items()}
+    stats_mag_h20 = {m: summarize_magnitude(run_magnitude_horizon(c, 20)) for m, c in closes.items()}
     bh = {
         "kr": buy_and_hold(kospi),
         "us": buy_and_hold(sp500),
@@ -336,6 +434,43 @@ def main():
             variants = {"v1(기존)": s1_["cumulative_return_pct"], "v2(RSI)": s2_["cumulative_return_pct"], "v3(MACD)": s3_["cumulative_return_pct"]}
             best = max(variants, key=variants.get)
             f.write(f"\n- **가장 나은 조합**: {best} (누적 수익률 {variants[best]}% 기준)\n\n")
+
+        f.write("## 규모(변동폭) 예측 신호 검증 (실험, rules.md 미반영)\n\n")
+        f.write("방향(상승/하락/보합)뿐 아니라 다음날 움직임의 **대략적인 규모**(완만/보통/큰폭)도 예측할 수 있는지 검증합니다. "
+                "예측 규모는 '어제 시점 최근 20일 평균 변동폭'을 그 시장의 과거 분포(3분위)에 대입해 완만/보통/큰폭으로 분류하고, "
+                "실제 규모는 오늘 실제 변동폭을 같은 방식으로 분류해 비교합니다. 3분위 분류이므로 **무작위 추측은 33.3% 적중**이 기대값입니다 — "
+                "이걸 못 넘으면 이 신호는 쓸모가 없다는 뜻입니다. 룩어헤드 방지를 위해 두 분포 모두 '오늘 이전' 값만 사용했습니다.\n\n")
+        f.write("| 시장 | 표본수 | 예측↔실제 상관계수 | 티어 정확 적중률 | 무작위 기준(33.3%) | 최빈값만 찍기 기준 |\n")
+        f.write("|---|---|---|---|---|---|\n")
+        for m, label in [("kr", "국내(코스피)"), ("us", "미국(S&P500)"), ("coin", "코인(BTC)")]:
+            sm = stats_mag[m]
+            if sm.get("n_tier", 0) == 0:
+                f.write(f"| {label} | 0 | {sm.get('corr')} | 표본 부족 | - | - |\n")
+                continue
+            f.write(f"| {label} | {sm['n_tier']}건 | {sm['corr']} | {sm['exact_hit_rate_pct']}% | "
+                    f"{sm['random_baseline_pct']}% | {sm['majority_baseline_pct']}% ({sm['majority_tier']}) |\n")
+        f.write("\n- **상관계수**: '최근 변동성이 높았다'는 사실과 '오늘 실제로 크게 움직였다'는 사실이 얼마나 같이 가는지(0에 가까우면 무관, "
+                "1에 가까우면 강한 연관). 변동성 군집(volatility clustering)이 실제로 존재하는지의 직접적인 증거입니다.\n")
+        f.write("- **티어 정확 적중률**이 무작위 기준(33.3%)과 '최빈값만 찍기' 기준을 동시에 못 넘으면, 이 신호는 규칙에 추가할 근거가 없다고 판단합니다 "
+                "— 최빈값 기준을 넘지 못한다는 건 '그냥 항상 가장 흔한 티어를 찍는 것'보다도 못하다는 뜻이기 때문입니다.\n")
+        f.write("- 이 신호는 아직 rules.md에 반영되지 않았습니다. 사용자 확인 후에만 changelog.md → rules.md 순으로 정식 반영합니다 "
+                "(CLAUDE.md 원칙: 규칙은 점진적으로, 검증된 것만).\n\n")
+
+        f.write("### 7일/1개월 규모 확장 검증\n\n")
+        f.write("같은 예측 변수(어제까지 최근 20일 평균 변동폭)로 5거래일(약 7일)·20거래일(약 1개월) 뒤까지의 **누적** 변동폭 등급도 "
+                "맞힐 수 있는지 확인했습니다.\n\n")
+        f.write("| 시장 | 5거래일(≈7일) 적중률 | 표본 | 최빈값 기준 | 20거래일(≈1개월) 적중률 | 표본 | 최빈값 기준 |\n")
+        f.write("|---|---|---|---|---|---|---|\n")
+        for m, label in [("kr", "국내(코스피)"), ("us", "미국(S&P500)"), ("coin", "코인(BTC)")]:
+            h5, h20 = stats_mag_h5[m], stats_mag_h20[m]
+            h5_txt = f"{h5['exact_hit_rate_pct']}%" if h5.get("n_tier", 0) > 0 else "표본부족"
+            h5_maj = f"{h5['majority_baseline_pct']}%" if h5.get("n_tier", 0) > 0 else "-"
+            h20_txt = f"{h20['exact_hit_rate_pct']}%" if h20.get("n_tier", 0) > 0 else "표본부족"
+            h20_maj = f"{h20['majority_baseline_pct']}%" if h20.get("n_tier", 0) > 0 else "-"
+            f.write(f"| {label} | {h5_txt} | {h5.get('n_tier', 0)}건 | {h5_maj} | {h20_txt} | {h20.get('n_tier', 0)}건 | {h20_maj} |\n")
+        f.write("\n- 무작위 기준은 여기서도 33.3%입니다.\n")
+        f.write("- 기간이 길어질수록 등급 예측은 원래 더 어려워지는 게 정상입니다(먼 미래일수록 다른 변수의 영향이 커짐) — "
+                "1일 대비 정확도가 떨어지는 건 신호 실패가 아니라 예상된 현상입니다.\n\n")
 
         f.write("## 해석 시 주의\n\n")
         f.write("- 방향성 콜만 집계한 적중률이 50%를 크게 넘지 않으면 이 신호 조합은 랜덤과 큰 차이가 없다는 뜻입니다.\n")
