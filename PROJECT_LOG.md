@@ -71,6 +71,10 @@
 ### 10. 텔레그램 차단 4회 연속 재확인 (2026-08-04 17시대 마감 비교 브리핑 실행 중 발견)
 - **텔레그램 API 차단 재확인(3일 연속, 마감 브리핑에서는 처음 확인)**: 8/4 마감 비교 브리핑에서도 재시도(2초 후 1회) 포함 전량 `Tunnel connection failed: 403 Forbidden`으로 실패. `curl $HTTPS_PROXY/__agentproxy/status`의 `recentRelayFailures`에도 `api.telegram.org:443` CONNECT가 `connect_rejected`(조직 정책 거부)로 재확인됨 — 8번(8/3 아침)·9번(8/4 아침) 항목과 동일한 증상이 하루 안에서도(아침→저녁) 재발해, 시간대와 무관하게 상시 차단 상태임을 확인했다. 8번 항목에서 이미 지적한 대로 이 문제는 코드로 해결 불가 — **세션 네트워크 정책에서 `api.telegram.org` 허용 필요(사용자 조치 대기 중, 아직 미해결)**. 이번 실행도 predictions/·results/·git 커밋으로만 기록을 남겼고, 실패 사실을 최종 요약과 사용자 알림(PushNotification)에 명시했다.
 
+### 11. 텔레그램 차단 5회 연속 재확인 (2026-08-05 07시대 아침 브리핑 실행 중 발견)
+- **텔레그램 API 차단 재확인(5회 연속, 4일째)**: 8/5 아침 브리핑에서도 국내/미국/코인 3통 모두 재시도(2초 후 1회) 포함 전량 `Tunnel connection failed: 403 Forbidden`으로 실패. `curl $HTTPS_PROXY/__agentproxy/status`의 `recentRelayFailures`에도 `api.telegram.org:443` CONNECT가 `connect_rejected`(조직 정책 거부)로 재확인됨 — 8번(8/3 아침)·9번(8/4 아침)·10번(8/4 저녁) 항목에 이어 4일째, 5회째 동일 증상. `api.coingecko.com`도 동일하게 차단 재확인(기존과 일관). 이 문제는 코드로 해결 불가 — **세션 네트워크 정책에서 `api.telegram.org` 허용이 반드시 필요**(사용자 조치 대기 중, 아직 미해결). 이번 실행도 predictions/·reports/·git 커밋으로만 기록을 남겼고, 실패 사실을 최종 요약과 PushNotification에 명시했다.
+- **참고**: HEAD가 detached 상태로 시작됐으나(`main`이 아닌 커밋에 체크아웃돼 있었음), `git fetch` 확인 결과 origin/main과 로컬 상태가 실제로는 일치했음(로컬 캐시된 origin/main 참조가 stale했을 뿐, 실제 누락된 커밋은 없었음) — `git checkout -B main HEAD`로 정상화 후 이번 브리핑 커밋을 추가해 푸시함. 다음 실행에서 HEAD가 detached 상태로 시작하는지 계속 지켜볼 것(원인 미파악이나 지금까지는 실질적 데이터 손실은 없었음).
+
 ## 알려진 한계 / 다음에 볼 것
 - `rules.md` v1은 수급 주체별(외국인/기관) 매매동향, 거시 지표(금리/환율)를 아직 반영하지 않음.
 - 백테스트의 "전체 적중률" 지표는 위에서 설명한 이유로 그 자체로는 신뢰하기 어려움 — 방향성 콜만 집계한 적중률, Sharpe 유사 지표, 누적수익 위주로 판단할 것.
