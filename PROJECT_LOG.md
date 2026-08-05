@@ -79,6 +79,10 @@
 - **텔레그램 API 차단 재확인(6회 연속, 5일째)**: 8/5 마감 비교 브리핑에서도 재시도(2초 후 1회) 포함 국내 결과 1통이 전량 `Tunnel connection failed: 403 Forbidden`으로 실패. `curl $HTTPS_PROXY/__agentproxy/status`의 `recentRelayFailures`에도 `api.telegram.org:443` CONNECT가 `connect_rejected`(조직 정책 거부)로 재확인됨 — 8번(8/3 아침)부터 11번(8/5 아침) 항목까지 이어진 것과 동일한 증상이 5일째 그대로 지속. 이 문제는 코드로 해결 불가 — **세션 네트워크 정책에서 `api.telegram.org` 허용이 반드시 필요**(사용자 조치 대기 중, 아직 미해결). 이번 실행도 results/·portfolio/ledger.csv·git 커밋으로만 기록을 남겼고, 실패 사실을 최종 요약과 PushNotification에 명시했다.
 - **참고**: 이번 실행도 HEAD가 detached 상태로 시작됐으나(`main`이 아닌 커밋에 체크아웃), `git fetch` 후 origin/main과 로컬이 실제로는 일치(로컬 캐시된 origin/main 참조가 stale했을 뿐)함을 재확인 — 11번 항목과 동일 패턴. `git checkout -B main HEAD`로 정상화 후 진행했다.
 
+### 13. 알림 채널 카카오톡 전환 후 첫 발송 성공 (2026-08-06 07시대 아침 브리핑 실행 중)
+- **카카오톡 전환 첫 성공**: 8번(8/3)부터 12번(8/5) 항목까지 5일 연속 이어지던 텔레그램 차단 문제로, 이번 실행부터 알림 채널을 텔레그램에서 PlayMCP `KakaotalkChat-MemoChat`(카카오톡 나에게 메모 보내기)로 전환했다. 200자 제한에 맞춰 국내/미국/코인 방향을 한 줄로 압축("[아침브리핑 8/6] 국내 혼조/미국 보합/코인 보합. 전체: <GitHub 링크>", 143자)해 1통만 발송했고, 도구 호출 결과 "메시지를 성공적으로 보냈습니다"로 성공을 확인했다 — 채널 전환 이후 첫 실제 발송 성공 사례. GitHub 링크는 `mcp__github__get_file_contents`로 `reports/` 디렉토리를 조회해 정확한 `html_url`(퍼센트 인코딩된 파일명)을 확보해 사용, 손으로 인코딩할 때의 404 위험을 피했다.
+- **HEAD detached 7회 연속 재발**: 이번 실행도 HEAD가 detached 상태로 시작됐으나(`git fetch` 후 origin/main과 로컬이 실제로는 일치, stale 캐시였을 뿐) 12번 항목까지와 동일 패턴. `git checkout -B main HEAD`로 정상화 후 진행했다 — 원인은 여전히 미파악이나 실질적 데이터 손실은 이번까지 없었음.
+
 ## 알려진 한계 / 다음에 볼 것
 - `rules.md` v1은 수급 주체별(외국인/기관) 매매동향, 거시 지표(금리/환율)를 아직 반영하지 않음.
 - 백테스트의 "전체 적중률" 지표는 위에서 설명한 이유로 그 자체로는 신뢰하기 어려움 — 방향성 콜만 집계한 적중률, Sharpe 유사 지표, 누적수익 위주로 판단할 것.
