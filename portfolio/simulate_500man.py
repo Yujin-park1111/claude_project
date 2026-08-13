@@ -18,8 +18,13 @@ portfolio/ledger.csv의 실제 콜(상승/하락/보합/혼조)과 실제 결과
 
 결과:
   portfolio/500만원_시뮬레이션.md - 거래 로그 + 시장별/전체 최종 잔고
+  portfolio/simulation_report.html - 그래프+포지션 현황 시각화 리포트 (GitHub Pages로 열람)
+
+전략 노트: portfolio/strategy_note.txt 파일이 있으면(자동화 루틴이 매일 갱신) 그 내용을
+리포트 상단 "오늘의 전략 노트"에 그대로 반영한다. 없으면 그 섹션은 생략된다.
 """
 import csv
+import json
 import os
 import sys
 
@@ -28,18 +33,20 @@ sys.stdout.reconfigure(encoding="utf-8")
 HERE = os.path.dirname(os.path.abspath(__file__))
 LEDGER_PATH = os.path.join(HERE, "ledger.csv")
 OUT_PATH = os.path.join(HERE, "500만원_시뮬레이션.md")
+TEMPLATE_PATH = os.path.join(HERE, "simulation_report_template.html")
+HTML_OUT_PATH = os.path.join(HERE, "simulation_report.html")
+NOTE_PATH = os.path.join(HERE, "strategy_note.txt")
 
 START_CAPITAL = 5_000_000
 MARKETS = {"kr": "국내", "us": "미국", "coin": "코인"}
 START_PER_MARKET = START_CAPITAL // len(MARKETS)
 
 
-def load_closed_rows():
+def load_all_rows():
+    """market -> 전체 행(open 포함) 리스트, call_date/id 순 정렬"""
     rows = {m: [] for m in MARKETS}
     with open(LEDGER_PATH, encoding="utf-8") as f:
         for row in csv.DictReader(f):
-            if row["status"] != "closed":
-                continue
             m = row["market"]
             if m not in rows:
                 continue
@@ -47,6 +54,28 @@ def load_closed_rows():
     for m in rows:
         rows[m].sort(key=lambda r: (r["call_date"], int(r["id"])))
     return rows
+
+
+def load_closed_rows(all_rows):
+    return {m: [r for r in rows if r["status"] == "closed"] for m, rows in all_rows.items()}
+
+
+def current_status(all_rows):
+    """시장별 가장 최근 행 기준 현재 포지션 상태(진입 중/청산 완료)."""
+    status = {}
+    for m, rows in all_rows.items():
+        if not rows:
+            status[m] = None
+            continue
+        last = rows[-1]
+        status[m] = {
+            "status": last["status"],
+            "direction": last["direction"],
+            "call_date": last["call_date"],
+            "instrument": last["instrument"],
+            "entry": last["entry_price"],
+        }
+    return status
 
 
 def simulate(rows):
@@ -79,8 +108,48 @@ def won(n):
     return f"{round(n):,}원"
 
 
+def build_html(results, current, note):
+    payload = {
+        "markets": {
+            m: {
+                "label": r["label"],
+                "log": [
+                    {
+                        "date": t["date"],
+                        "direction": t["direction"],
+                        "instrument": t["instrument"],
+                        "entry": t["entry"],
+                        "exit": t["exit"],
+                        "actual_move_pct": t["actual_move_pct"],
+                        "position_return_pct": t["position_return_pct"],
+                        "gain_krw": round(t["gain_krw"]),
+                        "balance_after": round(t["balance_after"]),
+                    }
+                    for t in r["log"]
+                ],
+                "final_balance": round(r["final_balance"]),
+            }
+            for m, r in results.items()
+        },
+        "current": current,
+        "note": note,
+    }
+    with open(TEMPLATE_PATH, encoding="utf-8") as f:
+        template = f.read()
+    html = template.replace("__SIM_DATA__", json.dumps(payload, ensure_ascii=False))
+    with open(HTML_OUT_PATH, "w", encoding="utf-8") as f:
+        f.write(html)
+    print(f"저장: {HTML_OUT_PATH}")
+
+
 def main():
-    rows = load_closed_rows()
+    all_rows = load_all_rows()
+    rows = load_closed_rows(all_rows)
+    current = current_status(all_rows)
+    note = ""
+    if os.path.exists(NOTE_PATH):
+        with open(NOTE_PATH, encoding="utf-8") as f:
+            note = f.read().strip()
     results = simulate(rows)
 
     total_final = sum(r["final_balance"] for r in results.values())
@@ -146,6 +215,8 @@ def main():
 
     with open(OUT_PATH, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
+
+    build_html(results, current, note)
 
     print(f"저장: {OUT_PATH}")
     print(f"최종 합계: {won(total_final)} ({sign}{won(total_profit)}, {sign}{total_pct:.1f}%)")
