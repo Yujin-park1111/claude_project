@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>클대리의 500만원 실전 투자 시뮬레이션</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page:           #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --muted:          #898781;
+    --grid:           #e1e0d9;
+    --baseline:       #c3c2b7;
+    --good:           #006300;
+    --bad:            #d03b3b;
+    --border:         rgba(11,11,11,0.10);
+    --kr:             #2a78d6;
+    --us:             #eb6834;
+    --coin:           #1baf7a;
+    --total:          #0b0b0b;
+    --kr-bg:          #eaf2fc;
+    --us-bg:          #fdece4;
+    --coin-bg:        #e5f7f0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --page:           #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --muted:          #898781;
+      --grid:           #2c2c2a;
+      --baseline:       #383835;
+      --good:           #0ca30c;
+      --bad:            #e66767;
+      --border:         rgba(255,255,255,0.10);
+      --kr:             #3987e5;
+      --us:             #d95926;
+      --coin:           #199e70;
+      --total:          #ffffff;
+      --kr-bg:          #16273c;
+      --us-bg:          #3a2015;
+      --coin-bg:        #12291f;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --page:           #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --muted:          #898781;
+    --grid:           #2c2c2a;
+    --baseline:       #383835;
+    --good:           #0ca30c;
+    --bad:            #e66767;
+    --border:         rgba(255,255,255,0.10);
+    --kr:             #3987e5;
+    --us:             #d95926;
+    --coin:           #199e70;
+    --total:          #ffffff;
+    --kr-bg:          #16273c;
+    --us-bg:          #3a2015;
+    --coin-bg:        #12291f;
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --page:           #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --muted:          #898781;
+    --grid:           #e1e0d9;
+    --baseline:       #c3c2b7;
+    --good:           #006300;
+    --bad:            #d03b3b;
+    --border:         rgba(11,11,11,0.10);
+    --kr:             #2a78d6;
+    --us:             #eb6834;
+    --coin:           #1baf7a;
+    --total:          #0b0b0b;
+    --kr-bg:          #eaf2fc;
+    --us-bg:          #fdece4;
+    --coin-bg:        #e5f7f0;
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page);
+    color: var(--text-primary);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 40px 20px 80px; }
+
+  header { margin-bottom: 28px; }
+  h1 { font-size: 26px; font-weight: 800; margin: 0 0 10px; letter-spacing: -0.01em; }
+  .disclaimer {
+    font-size: 13px; line-height: 1.6; color: var(--text-secondary);
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 10px; padding: 12px 16px; margin: 0 0 16px;
+  }
+  .meta { font-size: 13px; color: var(--muted); }
+  .meta b { color: var(--text-secondary); font-weight: 600; }
+
+  .stat-row {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px;
+    margin: 24px 0;
+  }
+  .stat-tile {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 12px; padding: 16px;
+  }
+  .stat-tile .label { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+  .stat-tile .value {
+    font-size: 21px; font-weight: 700; font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+  .stat-tile .delta { font-size: 13px; margin-top: 4px; font-variant-numeric: tabular-nums; }
+  .delta.good { color: var(--good); }
+  .delta.bad { color: var(--bad); }
+
+  section { margin: 36px 0; }
+  h2 { font-size: 16px; font-weight: 700; margin: 0 0 14px; }
+
+  .chart-card {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 14px; padding: 20px 20px 8px;
+  }
+  .legend { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 10px; font-size: 13px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); }
+  .swatch { width: 14px; height: 3px; border-radius: 2px; display: inline-block; }
+  svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .gridline { stroke: var(--grid); stroke-width: 1; }
+  .baseline { stroke: var(--baseline); stroke-width: 1; stroke-dasharray: 3 3; }
+  .axis-label { fill: var(--muted); font-size: 10.5px; }
+  .series-line { fill: none; stroke-width: 2; }
+  .series-line.total { stroke-width: 2.5; }
+  .crosshair-line { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 2 2; opacity: 0; }
+  .hover-dot { opacity: 0; }
+  .chart-overlay { fill: transparent; cursor: crosshair; }
+
+  .tooltip {
+    position: absolute; pointer-events: none; opacity: 0; transition: opacity .08s;
+    background: var(--text-primary); color: var(--page);
+    border-radius: 8px; padding: 8px 11px; font-size: 12px; line-height: 1.6;
+    transform: translate(-50%, -110%); white-space: nowrap; z-index: 5;
+  }
+  .tooltip .t-date { font-weight: 700; margin-bottom: 3px; }
+  .tooltip .t-row { display: flex; justify-content: space-between; gap: 14px; }
+  .tooltip .t-row span:first-child { opacity: 0.75; }
+
+  .market-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .market-card {
+    border-radius: 12px; padding: 14px 16px; border: 1px solid var(--border);
+  }
+  .market-card .m-label { font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+  .market-card .m-value { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .market-card .m-delta { font-size: 12.5px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+  details {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 12px; margin-bottom: 10px; overflow: hidden;
+  }
+  summary {
+    cursor: pointer; padding: 14px 16px; font-weight: 600; font-size: 14px;
+    display: flex; justify-content: space-between; align-items: center;
+    list-style: none;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary .arrow { color: var(--muted); font-size: 12px; transition: transform .15s; }
+  details[open] summary .arrow { transform: rotate(90deg); }
+  .table-wrap { overflow-x: auto; border-top: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; min-width: 520px; }
+  th, td { padding: 8px 12px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; }
+  tbody tr { border-top: 1px solid var(--grid); }
+  td.pos { color: var(--good); }
+  td.neg { color: var(--bad); }
+  td.call { font-weight: 600; }
+
+  footer { margin-top: 40px; font-size: 12px; color: var(--muted); line-height: 1.7; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>클대리의 500만원 실전 투자 시뮬레이션</h1>
+    <p class="disclaimer">
+      실제 돈이 아닙니다. <code>portfolio/ledger.csv</code>에 이미 기록된 실제 콜과 실제 결과를 그대로 재생해
+      "500만원을 진짜로 이 규칙대로 굴렸다면 얼마가 됐을까"를 계산한 사후 시뮬레이션입니다.
+      매일 잔고 전액을 그날 콜에 베팅하는(몰빵) 가장 단순하고 공격적인 정책을 가정했습니다 — 실제 투자라면
+      이렇게 하지 않는 게 정상입니다. 실험/연구 목적이며 투자 자문이 아닙니다.
+    </p>
+    <p class="meta"><b id="meta-range"></b> 기준 · 국내/미국/코인 각 <b>1,666,666원</b>씩 균등 분할 시작</p>
+  </header>
+
+  <div class="stat-row" id="stat-row"></div>
+
+  <section>
+    <h2>자산 변화 (일별 합산)</h2>
+    <div class="chart-card">
+      <div class="legend" id="legend"></div>
+      <div style="position:relative;">
+        <svg id="chart" viewBox="0 0 860 320" preserveAspectRatio="xMidYMid meet"></svg>
+        <div class="tooltip" id="tooltip"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>시장별 최종 결과</h2>
+    <div class="market-grid" id="market-grid"></div>
+  </section>
+
+  <section>
+    <h2>거래 로그</h2>
+    <div id="logs"></div>
+  </section>
+
+  <footer>
+    하락 콜은 인버스 상품(국내 인버스 ETF·코인 선물 숏 등 실제 접근 가능한 상품) 매수를 가정했고, 레버리지·수수료·슬리피지는 반영하지 않았습니다.
+    시장별 표본이 아직 20건이 안 돼 <code>portfolio/policy.md</code> 기준으로는 "규칙이 좋다/나쁘다"를 판단하기엔 이릅니다 —
+    지금까지의 실제 기록일 뿐입니다.
+  </footer>
+</div>
+
+<script>
+const DATA = {"kr": {"label": "국내", "log": [{"date": "2026-07-27", "direction": "혼조", "instrument": "KOSPI", "entry": "6690.62", "exit": "6755.75", "actual_move_pct": 0.97, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1666666}, {"date": "2026-07-28", "direction": "혼조", "instrument": "KOSPI", "entry": "6755.75", "exit": "6023.66", "actual_move_pct": -10.84, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1666666}, {"date": "2026-07-29", "direction": "혼조", "instrument": "KOSPI", "entry": "6023.66", "exit": "5663.24", "actual_move_pct": -5.98, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1666666}, {"date": "2026-07-30", "direction": "하락", "instrument": "KOSPI", "entry": "5663.24", "exit": "5593.56", "actual_move_pct": -1.23, "position_return_pct": 1.23, "gain_krw": 20500, "balance_after": 1687166}, {"date": "2026-07-31", "direction": "상승", "instrument": "KOSPI", "entry": "5593.56", "exit": "6595.45", "actual_move_pct": 17.91, "position_return_pct": 17.91, "gain_krw": 302171, "balance_after": 1989337}, {"date": "2026-08-03", "direction": "혼조", "instrument": "KOSPI", "entry": "6595.45", "exit": "6257.45", "actual_move_pct": -5.12, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1989337}, {"date": "2026-08-04", "direction": "상승", "instrument": "KOSPI", "entry": "6257.45", "exit": "6358.95", "actual_move_pct": 1.62, "position_return_pct": 1.62, "gain_krw": 32227, "balance_after": 2021565}, {"date": "2026-08-05", "direction": "상승", "instrument": "KOSPI", "entry": "6358.95", "exit": "6598.26", "actual_move_pct": 3.76, "position_return_pct": 3.76, "gain_krw": 76011, "balance_after": 2097576}, {"date": "2026-08-06", "direction": "혼조", "instrument": "KOSPI", "entry": "6598.26", "exit": "6296.38", "actual_move_pct": -4.58, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 2097576}, {"date": "2026-08-07", "direction": "혼조", "instrument": "KOSPI", "entry": "6296.38", "exit": "6258.77", "actual_move_pct": -0.6, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 2097576}, {"date": "2026-08-10", "direction": "보합", "instrument": "KOSPI", "entry": "6258.77", "exit": "6299.66", "actual_move_pct": 0.65, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 2097576}, {"date": "2026-08-11", "direction": "하락", "instrument": "KOSPI", "entry": "6299.66", "exit": "6345.53", "actual_move_pct": 0.73, "position_return_pct": -0.73, "gain_krw": -15312, "balance_after": 2082263}, {"date": "2026-08-12", "direction": "보합", "instrument": "KOSPI", "entry": "6345.53", "exit": "6579.04", "actual_move_pct": 3.68, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 2082263}, {"date": "2026-08-13", "direction": "상승", "instrument": "KOSPI", "entry": "6579.04", "exit": "6813.34", "actual_move_pct": 3.56, "position_return_pct": 3.56, "gain_krw": 74129, "balance_after": 2156392}], "final_balance": 2156392}, "us": {"label": "미국", "log": [{"date": "2026-07-27", "direction": "혼조", "instrument": "S&P500", "entry": "7411.98", "exit": "7413.18", "actual_move_pct": 0.02, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1666666}, {"date": "2026-07-28", "direction": "혼조", "instrument": "S&P500", "entry": "7413.18", "exit": "7428.78", "actual_move_pct": 0.21, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1666666}, {"date": "2026-07-29", "direction": "혼조", "instrument": "S&P500", "entry": "7428.78", "exit": "7316.15", "actual_move_pct": -1.52, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1666666}, {"date": "2026-07-30", "direction": "하락", "instrument": "S&P500", "entry": "7316.15", "exit": "7437.63", "actual_move_pct": 1.66, "position_return_pct": -1.66, "gain_krw": -27667, "balance_after": 1638999}, {"date": "2026-07-31", "direction": "상승", "instrument": "S&P500", "entry": "7437.63", "exit": "7489.72", "actual_move_pct": 0.7, "position_return_pct": 0.7, "gain_krw": 11473, "balance_after": 1650472}, {"date": "2026-08-03", "direction": "보합", "instrument": "S&P500", "entry": "7489.72", "exit": "7600.5", "actual_move_pct": 1.48, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1650472}, {"date": "2026-08-04", "direction": "상승", "instrument": "S&P500", "entry": "7600.50", "exit": "7736.52", "actual_move_pct": 1.79, "position_return_pct": 1.79, "gain_krw": 29543, "balance_after": 1680016}, {"date": "2026-08-05", "direction": "상승", "instrument": "S&P500", "entry": "7736.52", "exit": "7723.55", "actual_move_pct": -0.17, "position_return_pct": -0.17, "gain_krw": -2856, "balance_after": 1677160}, {"date": "2026-08-06", "direction": "보합", "instrument": "S&P500", "entry": "7723.55", "exit": "7721.23", "actual_move_pct": -0.03, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1677160}, {"date": "2026-08-07", "direction": "보합", "instrument": "S&P500", "entry": "7721.23", "exit": "7745.05", "actual_move_pct": 0.31, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1677160}, {"date": "2026-08-10", "direction": "보합", "instrument": "S&P500", "entry": "7745.05", "exit": "7742.94", "actual_move_pct": -0.03, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1677160}, {"date": "2026-08-11", "direction": "보합", "instrument": "S&P500", "entry": "7742.94", "exit": "7728.2", "actual_move_pct": -0.19, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1677160}, {"date": "2026-08-12", "direction": "보합", "instrument": "S&P500", "entry": "7728.20", "exit": "7747.36", "actual_move_pct": 0.25, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1677160}], "final_balance": 1677160}, "coin": {"label": "코인", "log": [{"date": "2026-07-27", "direction": "하락", "instrument": "BTC/USD", "entry": "64304.50", "exit": "64418.43", "actual_move_pct": 0.18, "position_return_pct": -0.18, "gain_krw": -3000, "balance_after": 1663666}, {"date": "2026-07-27", "direction": "보합", "instrument": "BTC/USD", "entry": "64418.43", "exit": "65148.63", "actual_move_pct": 1.13, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1663666}, {"date": "2026-07-28", "direction": "보합", "instrument": "BTC/USD", "entry": "65148.63", "exit": "63630.89", "actual_move_pct": -2.33, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1663666}, {"date": "2026-07-29", "direction": "혼조", "instrument": "BTC/USD", "entry": "63630.89", "exit": "63884.96", "actual_move_pct": 0.4, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1663666}, {"date": "2026-07-30", "direction": "혼조", "instrument": "BTC/USD", "entry": "63884.96", "exit": "63800.73", "actual_move_pct": -0.13, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1663666}, {"date": "2026-07-31", "direction": "보합", "instrument": "BTC/USD", "entry": "63800.73", "exit": "64697.42", "actual_move_pct": 1.41, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1663666}, {"date": "2026-08-01", "direction": "보합", "instrument": "BTC/USD", "entry": "64697.42", "exit": "62888.5", "actual_move_pct": -2.8, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1663666}, {"date": "2026-08-02", "direction": "하락", "instrument": "BTC/USD", "entry": "62888.50", "exit": "62827.44", "actual_move_pct": -0.1, "position_return_pct": 0.1, "gain_krw": 1664, "balance_after": 1665330}, {"date": "2026-08-03", "direction": "보합", "instrument": "BTC/USD", "entry": "62827.44", "exit": "63166.13", "actual_move_pct": 0.54, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1665330}, {"date": "2026-08-04", "direction": "보합", "instrument": "BTC/USD", "entry": "63166.13", "exit": "63328.66", "actual_move_pct": 0.26, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1665330}, {"date": "2026-08-05", "direction": "보합", "instrument": "BTC/USD", "entry": "63328.66", "exit": "64074.25", "actual_move_pct": 1.18, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1665330}, {"date": "2026-08-06", "direction": "보합", "instrument": "BTC/USD", "entry": "64074.25", "exit": "64629.74", "actual_move_pct": 0.87, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1665330}, {"date": "2026-08-07", "direction": "보합", "instrument": "BTC/USD", "entry": "64629.74", "exit": "64177.01", "actual_move_pct": -0.7, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1665330}, {"date": "2026-08-08", "direction": "보합", "instrument": "BTC/USD", "entry": "64177.01", "exit": "64840.18", "actual_move_pct": 1.03, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1665330}, {"date": "2026-08-09", "direction": "상승", "instrument": "BTC/USD", "entry": "64840.18", "exit": "64914.16", "actual_move_pct": 0.11, "position_return_pct": 0.11, "gain_krw": 1832, "balance_after": 1667162}, {"date": "2026-08-10", "direction": "보합", "instrument": "BTC/USD", "entry": "64914.16", "exit": "64975.51", "actual_move_pct": 0.09, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1667162}, {"date": "2026-08-11", "direction": "보합", "instrument": "BTC/USD", "entry": "64975.51", "exit": "63928.04", "actual_move_pct": -1.61, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1667162}, {"date": "2026-08-12", "direction": "혼조", "instrument": "BTC/USD", "entry": "63928.04", "exit": "63628.81", "actual_move_pct": -0.47, "position_return_pct": 0.0, "gain_krw": 0, "balance_after": 1667162}], "final_balance": 1667162}};
+const START_PER_MARKET = 1666666;
+const MARKET_ORDER = ["kr", "us", "coin"];
+const COLOR_VAR = { kr: "--kr", us: "--us", coin: "--coin" };
+const BG_VAR = { kr: "--kr-bg", us: "--us-bg", coin: "--coin-bg" };
+
+function won(n) {
+  const sign = n < 0 ? "-" : "";
+  return sign + Math.round(Math.abs(n)).toLocaleString("ko-KR") + "원";
+}
+function pct(n) {
+  const sign = n >= 0 ? "+" : "";
+  return sign + n.toFixed(1) + "%";
+}
+
+// ---- build unified daily equity curve ----
+const allDates = new Set();
+MARKET_ORDER.forEach(m => DATA[m].log.forEach(t => allDates.add(t.date)));
+const dates = Array.from(allDates).sort();
+
+const lastByDate = { kr: {}, us: {}, coin: {} };
+MARKET_ORDER.forEach(m => {
+  DATA[m].log.forEach(t => { lastByDate[m][t.date] = t.balance_after; }); // last wins on dup dates
+});
+
+const series = { kr: [], us: [], coin: [], total: [] };
+let cur = { kr: START_PER_MARKET, us: START_PER_MARKET, coin: START_PER_MARKET };
+dates.forEach(d => {
+  MARKET_ORDER.forEach(m => { if (lastByDate[m][d] !== undefined) cur[m] = lastByDate[m][d]; });
+  series.kr.push(cur.kr);
+  series.us.push(cur.us);
+  series.coin.push(cur.coin);
+  series.total.push(cur.kr + cur.us + cur.coin);
+});
+// prepend a day-0 starting point
+dates.unshift("시작");
+["kr","us","coin"].forEach(m => series[m].unshift(START_PER_MARKET));
+series.total.unshift(START_PER_MARKET * 3);
+
+document.getElementById("meta-range").textContent =
+  dates[1] + " ~ " + dates[dates.length - 1];
+
+// ---- stat row ----
+const totalFinal = series.total[series.total.length - 1];
+const totalStart = START_PER_MARKET * 3;
+const totalProfit = totalFinal - totalStart;
+const statRow = document.getElementById("stat-row");
+[
+  ["시작 자본", won(5000000), null],
+  ["최종 잔고", won(totalFinal), null],
+  ["손익", won(totalProfit), totalProfit],
+  ["수익률", pct(totalProfit / totalStart * 100), totalProfit],
+].forEach(([label, value, deltaBasis]) => {
+  const tile = document.createElement("div");
+  tile.className = "stat-tile";
+  tile.innerHTML = `<div class="label">${label}</div><div class="value">${value}</div>`;
+  statRow.appendChild(tile);
+});
+
+// ---- market cards ----
+const marketGrid = document.getElementById("market-grid");
+MARKET_ORDER.forEach(m => {
+  const d = DATA[m];
+  const profit = d.final_balance - START_PER_MARKET;
+  const cls = profit >= 0 ? "pos" : "neg";
+  const card = document.createElement("div");
+  card.className = "market-card";
+  card.style.background = `var(${BG_VAR[m]})`;
+  card.style.borderColor = "transparent";
+  card.innerHTML = `
+    <div class="m-label" style="color:var(${COLOR_VAR[m]})">${d.label}</div>
+    <div class="m-value">${won(d.final_balance)}</div>
+    <div class="m-delta ${profit >= 0 ? 'pos' : 'neg'}" style="color:${profit >= 0 ? 'var(--good)' : 'var(--bad)'}">
+      ${profit >= 0 ? '+' : ''}${won(profit)} (${pct(profit / START_PER_MARKET * 100)})
+    </div>`;
+  marketGrid.appendChild(card);
+});
+
+// ---- legend ----
+const legend = document.getElementById("legend");
+[["kr", "국내"], ["us", "미국"], ["coin", "코인"], ["total", "합계"]].forEach(([key, label]) => {
+  const item = document.createElement("div");
+  item.className = "legend-item";
+  const colorVar = key === "total" ? "--total" : COLOR_VAR[key];
+  item.innerHTML = `<span class="swatch" style="background:var(${colorVar})"></span>${label}`;
+  legend.appendChild(item);
+});
+
+// ---- SVG line chart with hover ----
+const svg = document.getElementById("chart");
+const W = 860, H = 320, PAD_L = 56, PAD_R = 12, PAD_T = 14, PAD_B = 28;
+const plotW = W - PAD_L - PAD_R, plotH = H - PAD_T - PAD_B;
+
+const allVals = [...series.kr, ...series.us, ...series.coin, ...series.total];
+const minV = Math.min(...allVals) * 0.97;
+const maxV = Math.max(...allVals) * 1.03;
+
+function x(i) { return PAD_L + (i / (dates.length - 1)) * plotW; }
+function y(v) { return PAD_T + plotH - ((v - minV) / (maxV - minV)) * plotH; }
+
+function ns(tag) { return document.createElementNS("http://www.w3.org/2000/svg", tag); }
+
+// gridlines (4 horizontal)
+const GRID_STEPS = 4;
+for (let i = 0; i <= GRID_STEPS; i++) {
+  const v = minV + (maxV - minV) * (i / GRID_STEPS);
+  const gy = y(v);
+  const line = ns("line");
+  line.setAttribute("x1", PAD_L); line.setAttribute("x2", W - PAD_R);
+  line.setAttribute("y1", gy); line.setAttribute("y2", gy);
+  line.setAttribute("class", "gridline");
+  svg.appendChild(line);
+  const label = ns("text");
+  label.setAttribute("x", PAD_L - 8); label.setAttribute("y", gy + 3.5);
+  label.setAttribute("text-anchor", "end"); label.setAttribute("class", "axis-label");
+  label.textContent = (v / 10000).toFixed(0) + "만";
+  svg.appendChild(label);
+}
+
+// baseline at start capital
+const baseline = ns("line");
+baseline.setAttribute("x1", PAD_L); baseline.setAttribute("x2", W - PAD_R);
+baseline.setAttribute("y1", y(totalStart)); baseline.setAttribute("y2", y(totalStart));
+baseline.setAttribute("class", "baseline");
+svg.appendChild(baseline);
+
+// x-axis date ticks (sparse)
+const tickEvery = Math.ceil(dates.length / 8);
+dates.forEach((d, i) => {
+  if (i === 0 || i % tickEvery !== 0) return;
+  const label = ns("text");
+  label.setAttribute("x", x(i)); label.setAttribute("y", H - PAD_B + 16);
+  label.setAttribute("text-anchor", "middle"); label.setAttribute("class", "axis-label");
+  label.textContent = d.slice(5).replace("-", "/");
+  svg.appendChild(label);
+});
+
+function drawLine(key, colorVar, isTotal) {
+  const pts = series[key].map((v, i) => `${x(i)},${y(v)}`).join(" ");
+  const poly = ns("polyline");
+  poly.setAttribute("points", pts);
+  poly.setAttribute("class", "series-line" + (isTotal ? " total" : ""));
+  poly.setAttribute("stroke", `var(${colorVar})`);
+  svg.appendChild(poly);
+}
+drawLine("kr", "--kr", false);
+drawLine("us", "--us", false);
+drawLine("coin", "--coin", false);
+drawLine("total", "--total", true);
+
+// crosshair + hover dots
+const crosshair = ns("line");
+crosshair.setAttribute("y1", PAD_T); crosshair.setAttribute("y2", H - PAD_B);
+crosshair.setAttribute("class", "crosshair-line");
+svg.appendChild(crosshair);
+
+const dots = {};
+["kr", "us", "coin", "total"].forEach(key => {
+  const dot = ns("circle");
+  dot.setAttribute("r", 3.5);
+  dot.setAttribute("class", "hover-dot");
+  dot.setAttribute("fill", key === "total" ? "var(--total)" : `var(${COLOR_VAR[key]})`);
+  svg.appendChild(dot);
+  dots[key] = dot;
+});
+
+const overlay = ns("rect");
+overlay.setAttribute("x", PAD_L); overlay.setAttribute("y", PAD_T);
+overlay.setAttribute("width", plotW); overlay.setAttribute("height", plotH);
+overlay.setAttribute("class", "chart-overlay");
+svg.appendChild(overlay);
+
+const tooltip = document.getElementById("tooltip");
+const chartCard = overlay.closest(".chart-card");
+
+overlay.addEventListener("mousemove", (e) => {
+  const rect = svg.getBoundingClientRect();
+  const scaleX = W / rect.width;
+  const mx = (e.clientX - rect.left) * scaleX;
+  let idx = Math.round(((mx - PAD_L) / plotW) * (dates.length - 1));
+  idx = Math.max(0, Math.min(dates.length - 1, idx));
+
+  crosshair.setAttribute("x1", x(idx)); crosshair.setAttribute("x2", x(idx));
+  crosshair.style.opacity = 1;
+  ["kr", "us", "coin", "total"].forEach(key => {
+    dots[key].setAttribute("cx", x(idx));
+    dots[key].setAttribute("cy", y(series[key][idx]));
+    dots[key].style.opacity = 1;
+  });
+
+  const cardRect = chartCard.getBoundingClientRect();
+  const dotScreenX = rect.left + x(idx) / scaleX;
+  tooltip.style.left = (dotScreenX - cardRect.left) + "px";
+  tooltip.style.top = (y(series.total[idx]) / scaleX) + "px";
+  tooltip.style.opacity = 1;
+  tooltip.innerHTML = `
+    <div class="t-date">${dates[idx]}</div>
+    <div class="t-row"><span>합계</span><span>${won(series.total[idx])}</span></div>
+    <div class="t-row"><span>국내</span><span>${won(series.kr[idx])}</span></div>
+    <div class="t-row"><span>미국</span><span>${won(series.us[idx])}</span></div>
+    <div class="t-row"><span>코인</span><span>${won(series.coin[idx])}</span></div>
+  `;
+});
+overlay.addEventListener("mouseleave", () => {
+  crosshair.style.opacity = 0;
+  Object.values(dots).forEach(d => d.style.opacity = 0);
+  tooltip.style.opacity = 0;
+});
+
+// ---- trade log tables ----
+const logsRoot = document.getElementById("logs");
+MARKET_ORDER.forEach(m => {
+  const d = DATA[m];
+  const wins = d.log.filter(t => t.gain_krw > 0).length;
+  const losses = d.log.filter(t => t.gain_krw < 0).length;
+  const flat = d.log.length - wins - losses;
+
+  const det = document.createElement("details");
+  const rowsHtml = d.log.map(t => `
+    <tr>
+      <td>${t.date}</td>
+      <td class="call">${t.direction}</td>
+      <td class="${t.actual_move_pct >= 0 ? 'pos' : 'neg'}">${pct(t.actual_move_pct)}</td>
+      <td class="${t.position_return_pct >= 0 ? 'pos' : 'neg'}">${pct(t.position_return_pct)}</td>
+      <td class="${t.gain_krw >= 0 ? 'pos' : 'neg'}">${t.gain_krw >= 0 ? '+' : ''}${won(t.gain_krw)}</td>
+      <td>${won(t.balance_after)}</td>
+    </tr>`).join("");
+
+  det.innerHTML = `
+    <summary>
+      <span style="color:var(${COLOR_VAR[m]})">${d.label} · ${d.log.length}건 (이익 ${wins} / 손실 ${losses} / 관망 ${flat})</span>
+      <span class="arrow">▸</span>
+    </summary>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>날짜</th><th>콜</th><th>실제 변동</th><th>포지션 수익률</th><th>손익</th><th>잔고</th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+      </table>
+    </div>`;
+  logsRoot.appendChild(det);
+});
+</script>
+</body>
+</html>
